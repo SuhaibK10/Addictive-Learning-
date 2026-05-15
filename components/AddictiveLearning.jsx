@@ -1,7 +1,8 @@
 "use client";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createClient } from "@/lib/supabase-browser";
 
-// ─── Per-topic fallback questions (shown when API key is not set up yet) ──────
+// ─── Per-topic fallback questions ─────────────────────────────────────────────
 const FALLBACKS = {
   ai: [
     { q: "You built a customer support chatbot. It keeps answering with information about products discontinued 6 months ago. What is the most likely reason?", opts: ["The server is too slow", "AI models only know what they were trained on — they have no access to newer information", "The questions are too long", "The chatbot needs a faster internet connection"], correct: 1, explain: "AI models are trained on data up to a certain date and then frozen. They cannot look up new information on their own. Adding a retrieval system lets the AI fetch your current documents before answering." },
@@ -33,10 +34,10 @@ const FALLBACKS = {
 };
 
 const TOPICS = [
-  { id: "ai",     label: "How AI works",   desc: "Great for beginners" },
-  { id: "react",  label: "React",          desc: "For frontend developers" },
-  { id: "python", label: "Python",         desc: "General coding" },
-  { id: "custom", label: "Custom topic",   desc: "Type anything" },
+  { id: "ai",     label: "How AI works",  desc: "Great for beginners" },
+  { id: "react",  label: "React",         desc: "For frontend developers" },
+  { id: "python", label: "Python",        desc: "General coding" },
+ 
 ];
 
 const TOPIC_PROMPTS = {
@@ -59,49 +60,36 @@ html,body{background:var(--bg);min-height:100vh}
 .root{min-height:100vh;background:var(--bg);color:var(--txt);font-family:var(--fb);font-size:14px}
 .dot{background-image:radial-gradient(circle,rgba(255,255,255,0.04) 1px,transparent 1px);background-size:26px 26px}
 .grid-bg{background-image:linear-gradient(rgba(255,255,255,0.016) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.016) 1px,transparent 1px);background-size:48px 48px}
-
 .page{max-width:560px;margin:0 auto;padding:0 16px 56px}
 .pt{padding-top:24px}
-
 .top-bar{height:48px;border-bottom:1px solid var(--brd);display:flex;align-items:center;padding:0 16px;gap:12px;position:sticky;top:0;z-index:50;background:rgba(8,8,8,0.94);backdrop-filter:blur(10px)}
 .logo{font-family:var(--fh);font-size:14px;font-weight:700;color:var(--txt);flex:1;letter-spacing:-0.2px}
 .logo span{color:var(--acc)}
 .rating-chip{display:flex;align-items:center;gap:5px}
 .rating-val{font-family:var(--fh);font-size:13px;font-weight:700;color:var(--txt)}
 .rating-lbl{font-size:11px;color:var(--sub)}
-
 .card{background:var(--s1);border:1px solid var(--brd);border-radius:10px}
 .p16{padding:16px}
-.p12{padding:12px}
-
 .t-label{font-size:11px;font-weight:600;color:var(--sub);letter-spacing:1.5px;text-transform:uppercase}
 .t-title{font-family:var(--fh);font-size:21px;font-weight:700;line-height:1.25;color:var(--txt)}
 .t-head{font-family:var(--fh);font-size:16px;font-weight:700;line-height:1.3;color:var(--txt)}
-.t-body{font-size:14px;line-height:1.65;color:var(--txt)}
 .t-small{font-size:12px;color:var(--sub);line-height:1.55}
 .t-acc{color:var(--acc)}
-.t-grn{color:var(--grn)}
-.t-gold{color:var(--gold)}
 hr{border:none;border-top:1px solid var(--brd);margin:12px 0}
-
 .btn{font-family:var(--fb);font-size:14px;font-weight:600;padding:11px 20px;border-radius:8px;border:1px solid var(--brd2);background:var(--s2);color:var(--txt);cursor:pointer;transition:all 0.15s;display:inline-flex;align-items:center;gap:7px;line-height:1;justify-content:center;white-space:nowrap}
 .btn:hover:not(:disabled){border-color:#444}
 .btn:disabled{opacity:0.5;cursor:not-allowed}
 .btn-pri{background:var(--acc);border-color:var(--acc);color:#fff}
 .btn-pri:hover:not(:disabled){opacity:0.87}
-.btn-grn{background:var(--grn);border-color:var(--grn);color:#000;font-weight:700}
-.btn-grn:hover:not(:disabled){opacity:0.88}
 .btn-full{width:100%}
 .btn-lg{padding:13px 22px;font-size:14px}
 .btn-sm{padding:7px 13px;font-size:12px}
-
 .topic-opt{width:100%;display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--s2);border:1px solid var(--brd);border-radius:8px;cursor:pointer;transition:all 0.15s;text-align:left;margin-bottom:6px}
 .topic-opt.active{background:rgba(245,80,30,0.07);border-color:rgba(245,80,30,0.35)}
 .topic-opt-text{font-size:14px;font-weight:600;color:var(--txt)}
 .topic-opt.active .topic-opt-text{color:var(--acc)}
 .topic-opt-desc{font-size:11px;color:var(--sub);margin-top:2px}
 .checkmark{font-size:13px;color:var(--acc)}
-
 .score-header{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--s1);border-bottom:1px solid var(--brd)}
 .score-side{display:flex;align-items:center;gap:7px;flex:1}
 .score-side.right{justify-content:flex-end;flex-direction:row-reverse}
@@ -117,11 +105,9 @@ hr{border:none;border-top:1px solid var(--brd);margin:12px 0}
 .timer-num{font-family:var(--fh);font-size:13px;font-weight:700;color:var(--txt)}
 .timer.warn{border-color:rgba(245,80,30,0.4)}
 .timer.warn .timer-num{color:var(--acc)}
-
 .q-wrap{padding:14px;background:var(--s1);border:1px solid var(--brd);border-radius:10px;margin-bottom:10px}
 .q-label{font-size:10px;font-weight:600;color:var(--sub);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
 .q-text{font-size:15px;line-height:1.7;color:var(--txt)}
-
 .opt{width:100%;display:flex;align-items:flex-start;gap:10px;padding:11px 14px;background:var(--s1);border:1px solid var(--brd);border-radius:8px;margin-bottom:7px;cursor:pointer;transition:all 0.15s;text-align:left;color:var(--txt);font-family:var(--fb);font-size:14px;line-height:1.55}
 .opt:hover:not(:disabled){border-color:#444;background:var(--s2)}
 .opt:disabled{cursor:default}
@@ -132,26 +118,22 @@ hr{border:none;border-top:1px solid var(--brd);margin:12px 0}
 .opt-wrong .opt-letter{color:#ff7050!important}
 .opt-dim{opacity:0.35}
 .opt-check{margin-left:auto;flex-shrink:0;font-size:14px}
-
 .status-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;font-size:12px;color:var(--sub)}
 .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:12px;font-size:11px;font-weight:500}
 .badge-grn{background:rgba(0,217,126,0.1);color:var(--grn);border:1px solid rgba(0,217,126,0.2)}
 .badge-acc{background:rgba(245,80,30,0.1);color:var(--acc);border:1px solid rgba(245,80,30,0.2)}
 .badge-sub{background:var(--s2);color:var(--sub);border:1px solid var(--brd)}
-
 .explain-box{padding:12px 14px;border-radius:8px;border-left:3px solid;margin-top:10px;font-size:13px;line-height:1.7}
 .explain-ok{border-color:var(--grn);background:rgba(0,217,126,0.04);color:#ccc}
 .explain-err{border-color:#ff7050;background:rgba(245,80,30,0.04);color:#ccc}
 .explain-head{font-weight:600;display:block;margin-bottom:4px;font-size:12px}
-
 .how-step{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px}
 .step-num{width:22px;height:22px;border-radius:50%;background:var(--s2);border:1px solid var(--brd);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;color:var(--acc);flex-shrink:0}
-
 .share-box{padding:11px 13px;background:var(--s2);border-radius:8px;font-size:13px;color:var(--sub);line-height:1.7;margin-bottom:10px}
 .stat-card{background:var(--s1);border:1px solid var(--brd);border-radius:8px;padding:12px;text-align:center}
 .stat-val{font-family:var(--fh);font-size:18px;font-weight:700;line-height:1.2}
 .stat-lbl{font-size:10px;color:var(--sub);margin-top:3px;letter-spacing:0.5px;text-transform:uppercase}
-
+.live-dot{width:7px;height:7px;border-radius:50%;background:var(--grn);display:inline-block;animation:pulse 1.5s ease-in-out infinite}
 @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
 @keyframes pop{0%{transform:scale(0.86);opacity:0}65%{transform:scale(1.03)}100%{transform:scale(1);opacity:1}}
 @keyframes pulse{0%,100%{opacity:0.45}50%{opacity:0.9}}
@@ -162,29 +144,37 @@ hr{border:none;border-top:1px solid var(--brd);margin:12px 0}
 .apulse{animation:pulse 1.8s ease-in-out infinite}
 `;
 
-// ─── Component ────────────────────────────────────────────────────────────────
 export default function AddictiveLearning() {
-  const [screen,    setScreen]  = useState("home");
-  const [topic,     setTopic]   = useState("ai");
-  const [customT,   setCustomT] = useState("");
-  const [questions, setQs]      = useState([]);
-  const [loading,   setLoading] = useState(false);
-  const [loadMsg,   setLoadMsg] = useState("");
-  const [qIdx,      setQIdx]    = useState(0);
-  const [selected,  setSel]     = useState(null);
-  const [timer,     setTimer]   = useState(20);
-  const [myScore,   setMyScore] = useState(0);
-  const [oppScore,  setOppScore]= useState(0);
-  const [oppAns,    setOppAns]  = useState(false);
-  const [oppRight,  setOppRight]= useState(false);
-  const [showExp,   setShowExp] = useState(false);
-  const [countdown, setCD]      = useState(3);
-  const [burst,     setBurst]   = useState(null);
-  const [rating,    setRating]  = useState(1200);
-  const timerRef = useRef(null);
-  const oppRef   = useRef(null);
+  const supabase = createClient();
 
-  // Google Fonts
+  const [screen,    setScreen]   = useState("home");
+  const [topic,     setTopic]    = useState("ai");
+  const [customT,   setCustomT]  = useState("");
+  const [questions, setQs]       = useState([]);
+  const [loading,   setLoading]  = useState(false);
+  const [loadMsg,   setLoadMsg]  = useState("");
+  const [qIdx,      setQIdx]     = useState(0);
+  const [selected,  setSel]      = useState(null);
+  const [timer,     setTimer]    = useState(20);
+  const [myScore,   setMyScore]  = useState(0);
+  const [oppScore,  setOppScore] = useState(0);
+  const [oppAns,    setOppAns]   = useState(false);
+  const [oppRight,  setOppRight] = useState(false);
+  const [showExp,   setShowExp]  = useState(false);
+  const [countdown, setCD]       = useState(3);
+  const [burst,     setBurst]    = useState(null);
+  const [rating,    setRating]   = useState(1200);
+
+  // Multiplayer state
+  const [matchId,   setMatchId]  = useState(null);
+  const [isP1,      setIsP1]     = useState(true);
+  const [joinCode,  setJoinCode] = useState("");
+  const [waitingForOpp, setWaiting] = useState(false);
+
+  const timerRef   = useRef(null);
+  const oppRef     = useRef(null);
+  const channelRef = useRef(null);
+
   useEffect(() => {
     const l = document.createElement("link");
     l.rel  = "stylesheet";
@@ -195,7 +185,7 @@ export default function AddictiveLearning() {
 
   const currentQ = questions[qIdx];
 
-  // ── 20-second countdown ──────────────────────────────────────────────────
+  // ── Timer ────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (screen !== "battle" || selected !== null) return;
     if (timer <= 0) { handleAnswer(-1); return; }
@@ -203,12 +193,41 @@ export default function AddictiveLearning() {
     return () => clearTimeout(timerRef.current);
   }, [screen, timer, selected]);
 
-  // ── Simulated opponent (replaces Supabase Realtime in demo mode) ──────────
-  // TO REPLACE WITH REAL MULTIPLAYER: swap this useEffect with a
-  // supabase.channel('match:'+matchId).on('postgres_changes', ...).subscribe()
-  // See supabase/schema.sql for the matches table structure.
+  // ── Supabase Realtime subscription ───────────────────────────────────────
   useEffect(() => {
-    if (screen !== "battle" || selected !== null) return;
+    if (!matchId || screen !== "battle") return;
+
+    const channel = supabase
+      .channel("match:" + matchId)
+      .on("postgres_changes", {
+        event: "UPDATE",
+        schema: "public",
+        table: "matches",
+        filter: `id=eq.${matchId}`,
+      }, (payload) => {
+        const m = payload.new;
+        const oppScore = isP1 ? m.p2_score : m.p1_score;
+        const oppAnswered = isP1
+          ? m.p2_last_answer !== null
+          : m.p1_last_answer !== null;
+        const oppAnswerIdx = isP1 ? m.p2_last_answer : m.p1_last_answer;
+
+        setOppScore(oppScore);
+        if (oppAnswered && !oppAns) {
+          setOppAns(true);
+          const q = questions[m.current_round - 1];
+          setOppRight(q ? oppAnswerIdx === q.correct : false);
+        }
+      })
+      .subscribe();
+
+    channelRef.current = channel;
+    return () => supabase.removeChannel(channel);
+  }, [matchId, screen, isP1, questions, oppAns]);
+
+  // ── Fallback simulated opponent (when no matchId = solo demo) ────────────
+  useEffect(() => {
+    if (screen !== "battle" || selected !== null || matchId) return;
     const delay = 3500 + Math.random() * 9000;
     const isRight = Math.random() < 0.58;
     oppRef.current = setTimeout(() => {
@@ -216,10 +235,10 @@ export default function AddictiveLearning() {
       setOppRight(isRight);
     }, delay);
     return () => clearTimeout(oppRef.current);
-  }, [screen, qIdx]);
+  }, [screen, qIdx, matchId]);
 
   // ── Answer handler ────────────────────────────────────────────────────────
-  const handleAnswer = useCallback((idx) => {
+  const handleAnswer = useCallback(async (idx) => {
     if (selected !== null || !currentQ) return;
     clearTimeout(timerRef.current);
     clearTimeout(oppRef.current);
@@ -231,18 +250,31 @@ export default function AddictiveLearning() {
       setBurst("+1 point");
       setTimeout(() => setBurst(null), 900);
     }
-    if (!oppAns) {
-      const or = Math.random() < 0.55;
-      setOppAns(true);
-      setOppRight(or);
-      if (or) setOppScore(s => s + 1);
-    } else if (oppRight) {
-      setOppScore(s => s + 1);
+
+    // Sync to Supabase if in a real match
+    if (matchId) {
+      const field = isP1 ? "p1_last_answer" : "p2_last_answer";
+      const scoreField = isP1 ? "p1_score" : "p2_score";
+      const newScore = (isP1 ? myScore : oppScore) + (correct ? 1 : 0);
+      await supabase.from("matches").update({
+        [field]: idx,
+        [scoreField]: newScore,
+      }).eq("id", matchId);
+    } else {
+      // Solo demo — simulate opponent
+      if (!oppAns) {
+        const or = Math.random() < 0.55;
+        setOppAns(true);
+        setOppRight(or);
+        if (or) setOppScore(s => s + 1);
+      } else if (oppRight) {
+        setOppScore(s => s + 1);
+      }
     }
-  }, [selected, currentQ, oppAns, oppRight]);
+  }, [selected, currentQ, oppAns, oppRight, matchId, isP1, myScore, oppScore]);
 
   // ── Next question ─────────────────────────────────────────────────────────
-  const nextQ = useCallback(() => {
+  const nextQ = useCallback(async () => {
     if (qIdx >= questions.length - 1) {
       const won = myScore > oppScore;
       const diff = Math.abs(myScore - oppScore);
@@ -250,18 +282,32 @@ export default function AddictiveLearning() {
         ? Math.round(16 + diff * 4)
         : myScore === oppScore ? 0 : -Math.round(12 + diff * 3);
       setRating(r => r + change);
+      if (matchId) {
+        await supabase.from("matches").update({
+          status: "complete",
+          winner_id: null,
+        }).eq("id", matchId);
+      }
       setScreen("results");
       return;
     }
-    setQIdx(i => i + 1);
+    const nextIdx = qIdx + 1;
+    setQIdx(nextIdx);
     setSel(null);
     setOppAns(false);
     setOppRight(false);
     setShowExp(false);
     setTimer(20);
-  }, [qIdx, questions.length, myScore, oppScore]);
+    if (matchId) {
+      await supabase.from("matches").update({
+        current_round: nextIdx + 1,
+        p1_last_answer: null,
+        p2_last_answer: null,
+      }).eq("id", matchId);
+    }
+  }, [qIdx, questions.length, myScore, oppScore, matchId]);
 
-  // ── 3-2-1 countdown ──────────────────────────────────────────────────────
+  // ── Countdown ─────────────────────────────────────────────────────────────
   useEffect(() => {
     if (screen !== "countdown") return;
     if (countdown <= 0) { setScreen("battle"); return; }
@@ -269,16 +315,13 @@ export default function AddictiveLearning() {
     return () => clearTimeout(t);
   }, [screen, countdown]);
 
-  // ── Generate questions via API route ─────────────────────────────────────
+  // ── Generate questions + create match ────────────────────────────────────
   const generateQuestions = useCallback(async () => {
     setLoading(true);
     setLoadMsg("Setting up your match...");
-
-    // Pick the right fallback for this topic upfront
     const fallback = FALLBACKS[topic] ?? FALLBACKS.ai;
-    const topicStr = topic === "custom"
-      ? customT
-      : TOPIC_PROMPTS[topic];
+    const topicStr = topic === "custom" ? customT : TOPIC_PROMPTS[topic];
+    let qs = fallback;
 
     try {
       setLoadMsg("Generating questions with AI...");
@@ -287,22 +330,87 @@ export default function AddictiveLearning() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ topic: topicStr }),
       });
-
       if (!res.ok) throw new Error(`API error ${res.status}`);
-
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-
-      setQs(Array.isArray(data.questions) && data.questions.length >= 5
-        ? data.questions
-        : fallback);
+      if (Array.isArray(data.questions) && data.questions.length >= 5) {
+        qs = data.questions;
+      }
     } catch (err) {
-      console.warn("AI generation failed, using fallback questions:", err.message);
-      setQs(fallback);
+      console.warn("AI generation failed, using fallback:", err.message);
     }
+
+    setQs(qs);
+
+    // Try to create a Supabase match room
+    try {
+      const { data: match, error } = await supabase
+        .from("matches")
+        .insert({
+          topic: topic === "custom" ? customT : topic,
+          questions: qs,
+          status: "waiting",
+        })
+        .select()
+        .single();
+
+      if (!error && match) {
+        setMatchId(match.id);
+        setIsP1(true);
+      }
+    } catch {
+      // Supabase not configured — solo demo mode
+      setMatchId(null);
+    }
+
     setLoading(false);
     setScreen("waiting");
   }, [topic, customT]);
+
+  // ── Join an existing match ────────────────────────────────────────────────
+  const joinMatch = useCallback(async () => {
+    if (!joinCode.trim()) return;
+    setLoading(true);
+    setLoadMsg("Joining match...");
+
+    try {
+      const id = joinCode.trim().split("/").pop(); // handle full URL or just ID
+      const { data: match, error } = await supabase
+        .from("matches")
+        .select("*")
+        .eq("id", id)
+        .single();
+
+      if (error || !match) {
+        alert("Match not found. Check the code and try again.");
+        setLoading(false);
+        return;
+      }
+
+      // Join as player 2
+      await supabase.from("matches").update({
+        p2_id: null, // anonymous for now
+        status: "active",
+      }).eq("id", id);
+
+      setMatchId(id);
+      setIsP1(false);
+      setQs(match.questions);
+      setMyScore(0);
+      setOppScore(0);
+      setQIdx(0);
+      setSel(null);
+      setOppAns(false);
+      setOppRight(false);
+      setShowExp(false);
+      setTimer(20);
+      setCD(3);
+      setScreen("countdown");
+    } catch (err) {
+      alert("Could not join match: " + err.message);
+    }
+    setLoading(false);
+  }, [joinCode]);
 
   const startMatch = () => {
     setMyScore(0); setOppScore(0); setQIdx(0);
@@ -315,10 +423,13 @@ export default function AddictiveLearning() {
     setScreen("home"); setQs([]); setQIdx(0);
     setSel(null); setOppAns(false); setOppRight(false);
     setMyScore(0); setOppScore(0); setTimer(20);
-    setLoading(false);
+    setLoading(false); setMatchId(null); setIsP1(true);
   };
 
-  // ── Shared top bar ────────────────────────────────────────────────────────
+  const matchLink = matchId
+    ? `${typeof window !== "undefined" ? window.location.origin : ""}/join/${matchId}`
+    : null;
+
   const Bar = ({ right }) => (
     <div className="top-bar">
       <div className="logo">Addictive <span>Learning</span></div>
@@ -348,15 +459,10 @@ export default function AddictiveLearning() {
           </p>
         </div>
 
-        {/* Topic selector */}
         <div className="card p16 au" style={{ marginBottom: 12, animationDelay: "0.05s" }}>
           <p className="t-label" style={{ marginBottom: 12 }}>Choose a topic</p>
           {TOPICS.map(t => (
-            <button
-              key={t.id}
-              className={`topic-opt${topic === t.id ? " active" : ""}`}
-              onClick={() => setTopic(t.id)}
-            >
+            <button key={t.id} className={`topic-opt${topic === t.id ? " active" : ""}`} onClick={() => setTopic(t.id)}>
               <div>
                 <div className="topic-opt-text">{t.label}</div>
                 <div className="topic-opt-desc">{t.desc}</div>
@@ -365,26 +471,15 @@ export default function AddictiveLearning() {
             </button>
           ))}
           {topic === "custom" && (
-            <input
-              value={customT}
-              onChange={e => setCustomT(e.target.value)}
-              placeholder="e.g. JavaScript arrays, SQL joins, machine learning..."
-              style={{
-                marginTop: 8, width: "100%", padding: "10px 13px",
-                background: "var(--s2)", border: "1px solid var(--brd)",
-                borderRadius: 8, color: "var(--txt)", fontFamily: "var(--fb)", fontSize: 14
-              }}
-            />
+            <input value={customT} onChange={e => setCustomT(e.target.value)}
+              placeholder="e.g. JavaScript arrays, SQL joins..."
+              style={{ marginTop: 8, width: "100%", padding: "10px 13px", background: "var(--s2)", border: "1px solid var(--brd)", borderRadius: 8, color: "var(--txt)", fontFamily: "var(--fb)", fontSize: 14 }} />
           )}
         </div>
 
-        {/* Actions */}
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 16 }} className="au">
-          <button
-            className="btn btn-pri btn-full btn-lg"
-            onClick={generateQuestions}
-            disabled={loading || (topic === "custom" && !customT.trim())}
-          >
+          <button className="btn btn-pri btn-full btn-lg" onClick={generateQuestions}
+            disabled={loading || (topic === "custom" && !customT.trim())}>
             {loading ? loadMsg : "Start a new match →"}
           </button>
           <button className="btn btn-full" onClick={() => setScreen("join")}>
@@ -392,15 +487,9 @@ export default function AddictiveLearning() {
           </button>
         </div>
 
-        {/* How it works */}
         <div className="card p16 au" style={{ animationDelay: "0.1s" }}>
           <p className="t-label" style={{ marginBottom: 12 }}>How it works</p>
-          {[
-            "Pick a topic and start a match",
-            "Share the link with a friend",
-            "You both see the same questions at the same time",
-            "First correct answer wins each round — best of 7 wins the match",
-          ].map((txt, i) => (
+          {["Pick a topic and start a match", "Share the link with a friend", "You both see the same questions at the same time", "First correct answer wins each round — best of 7 wins"].map((txt, i) => (
             <div key={i} className="how-step">
               <div className="step-num">{i + 1}</div>
               <p className="t-small" style={{ paddingTop: 3 }}>{txt}</p>
@@ -415,25 +504,15 @@ export default function AddictiveLearning() {
   if (screen === "join") return (
     <div className="root dot">
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
-      <Bar right={
-        <button className="btn btn-sm" onClick={() => setScreen("home")}>← Back</button>
-      } />
+      <Bar right={<button className="btn btn-sm" onClick={() => setScreen("home")}>← Back</button>} />
       <div className="page pt">
         <p className="t-label" style={{ marginBottom: 8 }}>Join a match</p>
         <h2 className="t-head" style={{ marginBottom: 14 }}>Enter the code your friend shared</h2>
-        <input
-          placeholder="Paste match code or link here..."
-          style={{
-            width: "100%", padding: "12px 14px", background: "var(--s1)",
-            border: "1px solid var(--brd)", borderRadius: 8,
-            color: "var(--txt)", fontFamily: "var(--fb)", fontSize: 14, marginBottom: 10
-          }}
-        />
-        <button
-          className="btn btn-pri btn-full btn-lg"
-          onClick={() => alert("Real-time join works when Supabase is connected. For now, use 'Start a new match' to play against a simulated opponent.")}
-        >
-          Join match →
+        <input value={joinCode} onChange={e => setJoinCode(e.target.value)}
+          placeholder="Paste match link or ID here..."
+          style={{ width: "100%", padding: "12px 14px", background: "var(--s1)", border: "1px solid var(--brd)", borderRadius: 8, color: "var(--txt)", fontFamily: "var(--fb)", fontSize: 14, marginBottom: 10 }} />
+        <button className="btn btn-pri btn-full btn-lg" onClick={joinMatch} disabled={loading || !joinCode.trim()}>
+          {loading ? loadMsg : "Join match →"}
         </button>
         <p className="t-small" style={{ marginTop: 12, textAlign: "center" }}>
           Don't have a code? Ask your friend to start a match and share the link.
@@ -451,38 +530,42 @@ export default function AddictiveLearning() {
         <div className="au" style={{ marginBottom: 20 }}>
           <p className="t-label" style={{ marginBottom: 8 }}>Match ready</p>
           <h2 className="t-head" style={{ marginBottom: 6 }}>Share this link with your opponent</h2>
-          <p className="t-small">They click it, and the match starts for both of you at the same time.</p>
+          <p className="t-small">They open the link, enter the code, and you both start at the same time.</p>
         </div>
 
         <div className="card" style={{ marginBottom: 12 }}>
           <div style={{ padding: "12px 14px", display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{
-              flex: 1, fontFamily: "var(--fb)", fontSize: 13, color: "var(--sub)",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"
-            }}>
-              addictivelearning.app/match/abc-xyz-123
+            <div style={{ flex: 1, fontFamily: "var(--fb)", fontSize: 13, color: "var(--sub)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {matchLink || "addictivelearning.app/join/abc-xyz-123"}
             </div>
-            <button
-              className="btn btn-sm"
-              onClick={() => navigator.clipboard?.writeText("https://addictivelearning.app/match/abc-xyz-123")}
-            >
+            <button className="btn btn-sm"
+              onClick={() => navigator.clipboard?.writeText(matchLink || window.location.href)}>
               Copy
             </button>
           </div>
           <hr style={{ margin: 0 }} />
           <div style={{ padding: "10px 14px", display: "flex", gap: 8 }}>
-            <button className="btn" style={{ flex: 1, fontSize: 13, padding: "9px" }}>Share via WhatsApp</button>
-            <button className="btn" style={{ flex: 1, fontSize: 13, padding: "9px" }}>Share on Twitter</button>
+            <button className="btn" style={{ flex: 1, fontSize: 13, padding: "9px" }}
+              onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent("Join my Addictive Learning match! " + (matchLink || ""))}`)}>
+              Share via WhatsApp
+            </button>
+            <button className="btn" style={{ flex: 1, fontSize: 13, padding: "9px" }}
+              onClick={() => window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent("Challenge me on Addictive Learning! " + (matchLink || ""))}`)}>
+              Share on Twitter
+            </button>
           </div>
         </div>
 
+        {matchId && (
+          <div className="card p16" style={{ marginBottom: 12, display: "flex", alignItems: "center", gap: 10 }}>
+            <span className="live-dot" />
+            <span style={{ fontSize: 13, color: "var(--sub)" }}>Waiting for opponent to join...</span>
+          </div>
+        )}
+
         <div className="card p16" style={{ marginBottom: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between" }}>
-            {[
-              ["Topic", topic === "custom" ? customT : TOPICS.find(t => t.id === topic)?.label],
-              ["Questions", questions.length],
-              ["Format", `Best of ${questions.length}`],
-            ].map(([lbl, val]) => (
+            {[["Topic", topic === "custom" ? customT : TOPICS.find(t => t.id === topic)?.label], ["Questions", questions.length], ["Format", `Best of ${questions.length}`]].map(([lbl, val]) => (
               <div key={lbl}>
                 <p className="t-small">{lbl}</p>
                 <p style={{ fontSize: 13, fontWeight: 600, color: "var(--txt)", marginTop: 2 }}>{val}</p>
@@ -493,11 +576,9 @@ export default function AddictiveLearning() {
 
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           <button className="btn btn-pri btn-full btn-lg" onClick={startMatch}>
-            Play against a simulated opponent →
+            {matchId ? "Start now (opponent joins mid-game)" : "Play against a simulated opponent →"}
           </button>
-          <button className="btn btn-full" style={{ fontSize: 13 }} onClick={resetAll}>
-            ← Change topic
-          </button>
+          <button className="btn btn-full" style={{ fontSize: 13 }} onClick={resetAll}>← Change topic</button>
         </div>
       </div>
     </div>
@@ -509,11 +590,7 @@ export default function AddictiveLearning() {
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div style={{ textAlign: "center" }}>
         <p className="t-label" style={{ marginBottom: 16 }}>Match starts in</p>
-        <div style={{
-          fontFamily: "var(--fh)", fontSize: 68, fontWeight: 800, lineHeight: 1,
-          color: countdown > 1 ? "var(--txt)" : "var(--acc)",
-          animation: "countIn 0.4s ease-out"
-        }}>
+        <div style={{ fontFamily: "var(--fh)", fontSize: 68, fontWeight: 800, lineHeight: 1, color: countdown > 1 ? "var(--txt)" : "var(--acc)", animation: "countIn 0.4s ease-out" }}>
           {countdown === 0 ? "GO!" : countdown}
         </div>
         <p className="t-small" style={{ marginTop: 16 }}>
@@ -527,23 +604,14 @@ export default function AddictiveLearning() {
   if (screen === "battle" && currentQ) {
     const isAnswered = selected !== null;
     const wasRight   = isAnswered && selected === currentQ.correct;
-
     return (
       <div className="root">
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
-
-        {/* Floating point burst */}
         {burst && (
-          <div style={{
-            position: "fixed", top: 60, left: "50%",
-            fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, color: "var(--grn)",
-            animation: "burst 0.9s ease-out forwards", pointerEvents: "none", zIndex: 100
-          }}>
+          <div style={{ position: "fixed", top: 60, left: "50%", fontFamily: "var(--fh)", fontSize: 16, fontWeight: 700, color: "var(--grn)", animation: "burst 0.9s ease-out forwards", pointerEvents: "none", zIndex: 100 }}>
             {burst}
           </div>
         )}
-
-        {/* Score header — sticky */}
         <div className="score-header" style={{ position: "sticky", top: 0, zIndex: 40 }}>
           <div className="score-side">
             <div className="avatar av-you">You</div>
@@ -564,28 +632,20 @@ export default function AddictiveLearning() {
         </div>
 
         <div className="page" style={{ paddingTop: 14 }}>
-          {/* Question */}
           <div className="q-wrap au">
             <p className="q-label">Question {qIdx + 1}</p>
             <p className="q-text">{currentQ.q}</p>
           </div>
-
-          {/* Options */}
           <div className="au" style={{ animationDelay: "0.05s" }}>
             {currentQ.opts.map((opt, i) => {
               let cls = "opt";
               if (isAnswered) {
-                if (i === currentQ.correct)                  cls += " opt-correct";
-                else if (i === selected)                     cls += " opt-wrong";
-                else                                         cls += " opt-dim";
+                if (i === currentQ.correct) cls += " opt-correct";
+                else if (i === selected) cls += " opt-wrong";
+                else cls += " opt-dim";
               }
               return (
-                <button
-                  key={i}
-                  className={cls}
-                  onClick={() => !isAnswered && handleAnswer(i)}
-                  disabled={isAnswered}
-                >
+                <button key={i} className={cls} onClick={() => !isAnswered && handleAnswer(i)} disabled={isAnswered}>
                   <span className="opt-letter">{String.fromCharCode(65 + i)}</span>
                   <span style={{ flex: 1 }}>{opt}</span>
                   {isAnswered && i === currentQ.correct && <span className="opt-check">✓</span>}
@@ -594,24 +654,16 @@ export default function AddictiveLearning() {
               );
             })}
           </div>
-
-          {/* Live status row */}
           <div className="status-row">
             {isAnswered
-              ? <span className={`badge ${wasRight ? "badge-grn" : "badge-acc"}`}>
-                  {wasRight ? "✓ Correct" : "✗ Wrong"}
-                </span>
+              ? <span className={`badge ${wasRight ? "badge-grn" : "badge-acc"}`}>{wasRight ? "✓ Correct" : "✗ Wrong"}</span>
               : <span className="badge badge-sub">Pick your answer</span>
             }
             {oppAns
-              ? <span className={`badge ${oppRight ? "badge-acc" : "badge-sub"}`}>
-                  Opponent {oppRight ? "got it right" : "got it wrong"}
-                </span>
+              ? <span className={`badge ${oppRight ? "badge-acc" : "badge-sub"}`}>Opponent {oppRight ? "got it right" : "got it wrong"}</span>
               : <span className="badge badge-sub apulse">Opponent thinking...</span>
             }
           </div>
-
-          {/* Explanation */}
           {showExp && isAnswered && (
             <div className={`explain-box ap ${wasRight ? "explain-ok" : "explain-err"}`}>
               <span className="explain-head" style={{ color: wasRight ? "var(--grn)" : "#ff7050" }}>
@@ -620,8 +672,6 @@ export default function AddictiveLearning() {
               {currentQ.explain}
             </div>
           )}
-
-          {/* Next button */}
           {isAnswered && (
             <button className="btn btn-pri btn-full btn-lg ap" onClick={nextQ} style={{ marginTop: 12 }}>
               {qIdx >= questions.length - 1 ? "See final score →" : "Next question →"}
@@ -634,13 +684,12 @@ export default function AddictiveLearning() {
 
   // ── RESULTS ───────────────────────────────────────────────────────────────
   if (screen === "results") {
-    const won     = myScore > oppScore;
-    const tied    = myScore === oppScore;
-    const diff    = Math.abs(myScore - oppScore);
-    const change  = won ? Math.round(16 + diff * 4) : tied ? 0 : -Math.round(12 + diff * 3);
-    const acc     = questions.length ? Math.round((myScore / questions.length) * 100) : 0;
+    const won  = myScore > oppScore;
+    const tied = myScore === oppScore;
+    const diff = Math.abs(myScore - oppScore);
+    const change = won ? Math.round(16 + diff * 4) : tied ? 0 : -Math.round(12 + diff * 3);
+    const acc  = questions.length ? Math.round((myScore / questions.length) * 100) : 0;
     const topicLabel = topic === "custom" ? customT : TOPICS.find(t => t.id === topic)?.label;
-
     return (
       <div className="root grid-bg">
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
@@ -648,11 +697,7 @@ export default function AddictiveLearning() {
         <div className="page pt" style={{ textAlign: "center" }}>
           <div className="ap" style={{ marginBottom: 22 }}>
             <p className="t-label" style={{ marginBottom: 8 }}>Match over</p>
-            <h2 className="t-title" style={{
-              fontSize: 24,
-              color: won ? "var(--grn)" : tied ? "var(--gold)" : "var(--txt)",
-              marginBottom: 4
-            }}>
+            <h2 className="t-title" style={{ fontSize: 24, color: won ? "var(--grn)" : tied ? "var(--gold)" : "var(--txt)", marginBottom: 4 }}>
               {won ? "You won! 🎉" : tied ? "It's a tie!" : "Opponent wins"}
             </h2>
             <div style={{ fontFamily: "var(--fh)", fontSize: 30, fontWeight: 800, color: "var(--txt)", marginBottom: 4 }}>
@@ -660,60 +705,33 @@ export default function AddictiveLearning() {
             </div>
             <p className="t-small">{topicLabel}</p>
           </div>
-
-          {/* Stats */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 8, marginBottom: 16 }}>
-            {[
-              ["Rating change", change > 0 ? `+${change}` : `${change}`, won ? "var(--grn)" : "var(--sub)"],
-              ["New rating",    rating,                                    "var(--txt)"],
-              ["Accuracy",      acc + "%",                                 "var(--gold)"],
-            ].map(([lbl, val, col]) => (
+            {[["Rating change", change > 0 ? `+${change}` : `${change}`, won ? "var(--grn)" : "var(--sub)"], ["New rating", rating, "var(--txt)"], ["Accuracy", acc + "%", "var(--gold)"]].map(([lbl, val, col]) => (
               <div key={lbl} className="stat-card">
                 <div className="stat-val" style={{ color: col }}>{val}</div>
                 <div className="stat-lbl">{lbl}</div>
               </div>
             ))}
           </div>
-
-          {/* Share */}
           <div className="card p16" style={{ marginBottom: 14, textAlign: "left" }}>
             <p className="t-label" style={{ marginBottom: 10 }}>Share your result</p>
             <div className="share-box">
-              {won ? `I beat my opponent ${myScore}–${oppScore}` : `I scored ${myScore}/${questions.length}`} on {topicLabel} — rating now {rating}.{" "}
-              Can you beat me? addictivelearning.app
+              {won ? `I beat my opponent ${myScore}–${oppScore}` : `I scored ${myScore}/${questions.length}`} on {topicLabel} — rating now {rating}. Can you beat me? addictivelearning.app
             </div>
             <div style={{ display: "flex", gap: 8 }}>
-              <button
-                className="btn"
-                style={{ flex: 1, fontSize: 13, padding: "9px" }}
-                onClick={() => navigator.clipboard?.writeText(
-                  `${won ? `I beat my opponent ${myScore}–${oppScore}` : `I scored ${myScore}/${questions.length}`} on ${topicLabel} — rating now ${rating}. Can you beat me? addictivelearning.app`
-                )}
-              >
+              <button className="btn" style={{ flex: 1, fontSize: 13, padding: "9px" }}
+                onClick={() => navigator.clipboard?.writeText(`${won ? `I beat my opponent ${myScore}–${oppScore}` : `I scored ${myScore}/${questions.length}`} on ${topicLabel} — rating now ${rating}. Can you beat me? addictivelearning.app`)}>
                 Copy text
               </button>
-              <button className="btn" style={{ flex: 1, fontSize: 13, padding: "9px" }}>
-                Share →
-              </button>
+              <button className="btn" style={{ flex: 1, fontSize: 13, padding: "9px" }}>Share →</button>
             </div>
           </div>
-
           <div style={{ display: "flex", gap: 8 }}>
-            <button
-              className="btn btn-pri"
-              style={{ flex: 1, padding: "13px" }}
-              onClick={() => {
-                setMyScore(0); setOppScore(0); setQIdx(0);
-                setSel(null); setOppAns(false); setOppRight(false);
-                setShowExp(false); setTimer(20); setCD(3);
-                setScreen("countdown");
-              }}
-            >
+            <button className="btn btn-pri" style={{ flex: 1, padding: "13px" }}
+              onClick={() => { setMyScore(0); setOppScore(0); setQIdx(0); setSel(null); setOppAns(false); setOppRight(false); setShowExp(false); setTimer(20); setCD(3); setScreen("countdown"); }}>
               Play again
             </button>
-            <button className="btn" style={{ flex: 1, padding: "13px" }} onClick={resetAll}>
-              Change topic
-            </button>
+            <button className="btn" style={{ flex: 1, padding: "13px" }} onClick={resetAll}>Change topic</button>
           </div>
         </div>
       </div>
