@@ -1,9 +1,5 @@
 # Addictive Learning
 
-Live 1-on-1 quiz matches. Challenge a friend, learn together.
-
----
-
 ## What this is
 
 Two players. Same questions. At the same time.  
